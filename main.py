@@ -29,12 +29,7 @@ def extract_text_from_pdf(pdf_path):
                 
                 if page_text:
                     text += page_text + "\n"
-                else:
-                    # images = convert_from_path(pdf_path, first_page=page.page_number, last_page=page.page_number)
-                    images = convert_from_path(pdf_path, first_page=page.page_number, last_page=page.page_number, poppler_path=r"C:\Users\dinht\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin")
-
-                    for image in images:
-                        text += pytesseract.image_to_string(image, lang='eng+vie') + "\n"
+                
     except Exception as e:
         st.error(f"Lỗi khi xử lý PDF: {e}")
         return None
@@ -115,8 +110,8 @@ def main():
     os.makedirs(temp_dir, exist_ok=True)
     
     if uploaded_files:
-        if len(uploaded_files) > 20:
-            st.error("⚠️ Giới hạn 20 file PDF một lần tải lên.")
+        if len(uploaded_files) > 200:
+            st.error("⚠️ Giới hạn 200 file PDF một lần tải lên.")
             return
         
         extracted_data = []
