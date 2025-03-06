@@ -1,10 +1,15 @@
 import streamlit as st
 import pdfplumber
-import json
+import pytesseract
+from pdf2image import convert_from_path
+from PIL import Image
 import os
 import shutil
-import openai
+import json
+import pandas as pd
 from docx import Document
+import openai
+
 
 # Người dùng nhập OpenAI API Key
 api_key = st.text_input("🔑 Nhập OpenAI API Key:", type="password")
