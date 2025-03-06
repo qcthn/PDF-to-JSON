@@ -1,0 +1,12 @@
+streamlit
+pdfplumber
+pytesseract
+pdf2image
+pillow
+openai
+pandas
+docx
+python-docx
+shutil
+json
+os
