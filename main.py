@@ -6,7 +6,7 @@ import shutil
 import openai
 from docx import Document
 import re
-LOGO_URL_LARGE = "logo\logo-medium.png"
+LOGO_URL_LARGE = "logo-medium.png"
 st.image(
     # LOGO_URL_LARGE,
     # size = "large",
