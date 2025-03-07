@@ -5,84 +5,72 @@ import os
 import shutil
 import openai
 from docx import Document
-
-# Người dùng nhập OpenAI API Key
-api_key = st.text_input("🔑 Nhập OpenAI API Key:", type="password")
+import re
+LOGO_URL_LARGE = "logo\logo-medium.png"
+st.image(
+    # LOGO_URL_LARGE,
+    # size = "large",
+    # link="https://streamlit.io/gallery",
+    LOGO_URL_LARGE,
+)
+# Nhập OpenAI API Key
+api_key = st.text_input("🔑 Enter OpenAI API Key:", type="password")
 if not api_key:
-    st.warning("Vui lòng nhập OpenAI API Key để sử dụng ứng dụng.")
+    st.warning("Please enter OpenAI API Key to use the app.")
     st.stop()
 
 # Cấu hình OpenAI client
 client = openai.OpenAI(api_key=api_key)
-
-# Theo dõi số request và chi phí
-total_requests = 0
-total_cost = 0.0
-
-# Định giá OpenAI API
-PRICE_PER_1K_TOKENS = {
-    "gpt-3.5-turbo": 0.002,  # $0.002 per 1K tokens
-    "gpt-4-turbo": 0.01       # $0.01 per 1K tokens
-}
-
+def clean_text(text):
+    """Làm sạch văn bản để loại bỏ ký tự NULL và các ký tự điều khiển không hợp lệ."""
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)  # Loại bỏ ký tự điều khiển
+    return text.strip()
+# Hàm trích xuất văn bản từ PDF
 def extract_text_from_pdf(pdf_path):
-    """Trích xuất văn bản từ file PDF."""
     text = ""
     try:
         with pdfplumber.open(pdf_path) as pdf:
             for page in pdf.pages:
                 page_text = page.extract_text()
                 if page_text:
-                    text += page_text + "\n"
+                    text += clean_text(page_text) + "\n"
     except Exception as e:
         st.error(f"Lỗi khi xử lý PDF: {e}")
         return None
     return text
-
-# Biến theo dõi số lần request và chi phí sử dụng OpenAI API
-total_requests = 0
-total_cost = 0.0
-
-# Định giá OpenAI API (có thể thay đổi nếu OpenAI cập nhật giá)
-PRICE_PER_1K_TOKENS = {
-    "gpt-3.5-turbo": 0.0005,  # $0.002 per 1K tokens
-    "gpt-4-turbo": 0.01       # $0.01 per 1K tokens
-}
 def clean_json_response(response_text):
     """Làm sạch phản hồi GPT để loại bỏ các ký tự không mong muốn trước khi phân tích JSON."""
+    response_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', response_text)
     response_text = response_text.strip()
     if response_text.startswith("```json"):
         response_text = response_text[7:]
     if response_text.endswith("```"):
         response_text = response_text[:-3]
     return response_text.strip()
-# Biến theo dõi số lần request và tổng chi phí sử dụng OpenAI API
-total_requests = 0
-total_cost = 0.0
-
-# Định giá OpenAI API (có thể thay đổi nếu OpenAI cập nhật giá)
-PRICE_PER_1K_TOKENS = {
-    "gpt-3.5-turbo": 0.0005,  # $0.002 per 1K tokens
-    "gpt-4-turbo": 0.01       # $0.01 per 1K tokens
-}
-
+# Hàm gọi GPT để trích xuất thông tin
 def extract_info_with_gpt(text):
-    """Sử dụng GPT-3.5 Turbo để trích xuất thông tin từ văn bản và tính toán chi phí."""
-    global total_requests, total_cost  # Sử dụng biến toàn cục để theo dõi số request và chi phí
-
     prompt = f"""
-    Trích xuất thông tin sau từ văn bản CV và trả về dưới dạng JSON có cấu trúc hợp lệ:
+    Trích xuất thông tin từ văn bản CV và trả về JSON hợp lệ:
     {{
         "Name": "",
         "Email": "",
         "Phone": "",
-        "Skills": [],
-        "Experience": [],
-        "Education": [],
-        "Certifications": [],
-        "Languages": []
+        "Skills": [],  
+        "Experience": [],  
+        "Education": [],  
+        "Certifications": [],  
+        "Languages": [],  
+        "Strengths": [],  
+        "Weaknesses": [],  
+        "Additional information": []
     }}
-    
+    For the **Languages** field, include:
+    - The candidate's native language based on their nationality (e.g., Vietnamese for a candidate from Vietnam).
+    - Any foreign language certifications (e.g., TOEIC score) and the corresponding language proficiency level (e.g., English with a proficiency level based on the score).
+
+    For **Strengths and Weaknesses**, analyze the candidate's work experience to identify:
+    - **Strengths:** Key skills and attributes demonstrated through their experience.
+    - **Weaknesses:** Areas for improvement or challenges faced in their roles.
     CV text:
     {text}
     """
@@ -90,106 +78,180 @@ def extract_info_with_gpt(text):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "You are an expert in extracting information from CVs (resume) and images with 10 years of experience in getting the exact information needed to recruit suitable positions for the company"
-            "Context: I will provide you with resumes of candidates (can be 1 or more resumes) or image files containing text"
-            "Your task is to extract information from the resumes and images I provide (I have taken the text from the resume and the image will be provided to you below) you return the output as a json file"
-            "Some of the most important information required of each candidate: Name, Email, Phone number, Skills, Experience (including: position, timeline, responsibilities), Education (including: degree, institution, timeline, GPA), Certifications, Languages,... In addition, I can also provide you with documents related to identification and visa, you must also get important information in there."
-            "Task: extract the following information from the CV text and return it as JSON"
-            "output: json file format"
-            "*** note here I can provide you with the text, but in that text will be a synthesis of many resumes of different candidates"
-            "REMEMBER : the output only json format"},
+            {"role": "system", "content": "You are an expert in extracting information from CVs (resumes) and images with 10 years of experience in getting the exact information needed to recruit suitable positions for the company."
+
+            "**Context:** I will provide you with resumes of candidates (which can be one or more) or image files containing text."
+
+            "**Your task** is to extract information from the resumes and images I provide (I have taken the text from the resume, and the image will be provided to you below) and return the output as a JSON file."
+
+            "Some of the most important information required for each candidate includes:"
+            "- Name"
+            "- Email"
+            "- Phone number"
+            "- Skills"
+            "- Experience (including: position, timeline, responsibilities)"
+            "- Education (including: degree, institution, timeline, GPA)"
+            "- Certifications"
+            "- Languages (including proficiency based on nationality and language certifications)"
+            "- Strengths (based on the candidate's experience and job description)"
+            "- Weaknesses (based on the candidate's experience and job description)"
+            "- Additional information (including identification and visa details if provided)"
+
+            "**Task:** Extract the following information from the CV text and return it as JSON."
+
+            "**Output:** JSON file format"
+
+            "***Note:** I can provide you with the text, but in that text will be a synthesis of many resumes of different candidates.*"
+
+            "**REMEMBER:** The output should only be in JSON format." },
             {"role": "user", "content": prompt}
         ]
     )
-
-    # Cập nhật số lần request
-    total_requests += 1
-
-    # Lấy số token sử dụng từ response
-    if hasattr(response, "usage"):
-        tokens_used = response.usage.total_tokens  # Tổng số token tiêu tốn
-        cost = (tokens_used / 1000) * PRICE_PER_1K_TOKENS["gpt-3.5-turbo"]  # Chi phí request
-        total_cost += cost  # Cộng dồn vào tổng chi phí
-    else:
-        tokens_used = 0
-        cost = 0.0
-
-    # Trích xuất nội dung phản hồi
+    # return json.loads(response.choices[0].message.content.strip())
     extracted_text = response.choices[0].message.content.strip()
     cleaned_text = clean_json_response(extracted_text)
-
+    # return json.loads(response.choices[0].message.content.strip())
     return json.loads(cleaned_text)
-
-def display_summary():
-    """Hiển thị tổng số request và tổng chi phí sau khi hoàn tất."""
-    st.write(f"🔄 **Tổng số request API:** {total_requests}")
-    st.write(f"💰 **Tổng chi phí OpenAI API:** ${total_cost:.4f}")
-
-
+# Lưu JSON
 def save_to_json(data_list, output_path):
-    """Lưu dữ liệu dưới dạng JSON."""
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data_list, f, ensure_ascii=False, indent=4)
+@st.cache_data
+def generate_json():
+    extracted_data = {}
+    for filename, text in extracted_texts.items():
+        extracted_info = extract_info_with_gpt(text)  # Gọi GPT tự động
+        extracted_info["Filename"] = filename
+        extracted_data[filename] = extracted_info
 
+    return json.dumps(list(extracted_data.values()), ensure_ascii=False, indent=4)
+# Tạo file Word
 def create_word_file(text_list, output_path):
-    """Tạo file Word chứa nội dung trích xuất."""
     try:
         doc = Document()
         for idx, (filename, text) in enumerate(text_list):
             doc.add_heading(f"File {idx + 1}: {filename}", level=1)
-            doc.add_paragraph(text)
+            doc.add_paragraph(clean_text(text))
             doc.add_page_break()
         doc.save(output_path)
         return True
     except Exception as e:
-        st.error(f"Lỗi khi tạo file Word: {e}")
+        st.error(f"Error creating Word file: {e}")
         return False
 
-def main():
-    st.title("📄 PDF to JSON Converter")
-    st.write("🔹 Tải lên tối đa **200 file PDF**, trích xuất văn bản, chuyển đổi sang **Word & JSON**.")
+# Ứng dụng Streamlit
+st.title("📄 HRIS AI Assistant")
+st.write("🔹 Upload your CV (PDF), extract content and ask questions to the virtual assistant!")
 
-    uploaded_files = st.file_uploader("📤 Chọn file PDF", type=["pdf"], accept_multiple_files=True)
-    temp_dir = "temp"
-    os.makedirs(temp_dir, exist_ok=True)
+# uploaded_files = st.file_uploader("📤Select PDF file", type=["pdf"], accept_multiple_files=True)
+# temp_dir = "temp"
+# os.makedirs(temp_dir, exist_ok=True)
 
-    # Chỉ hiển thị nút khi có tệp tải lên
-    if uploaded_files:
-        st.success(f"✅ Đã tải lên {len(uploaded_files)} file PDF. Nhấn **'Bắt đầu chuyển đổi'** để xử lý.")
+# if uploaded_files:
+#     extracted_data = {}
+#     extracted_texts = {}
 
-        if st.button("🚀 Bắt đầu chuyển đổi PDF sang JSON"):
-            with st.spinner("⏳ Đang xử lý... Vui lòng chờ giây lát."):
-                extracted_data = []
-                extracted_texts = []
+#     for uploaded_file in uploaded_files:
+#         temp_file_path = os.path.join(temp_dir, uploaded_file.name)
+#         with open(temp_file_path, "wb") as f:
+#             f.write(uploaded_file.getbuffer())
 
-                for uploaded_file in uploaded_files:
-                    temp_file_path = os.path.join(temp_dir, uploaded_file.name)
-                    with open(temp_file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
+#         text = extract_text_from_pdf(temp_file_path)
+#         if text:
+#             extracted_texts[uploaded_file.name] = text
+#             extracted_info = extract_info_with_gpt(text)
+#             extracted_info["Filename"] = uploaded_file.name
+#             extracted_data[uploaded_file.name] = extracted_info
+#         os.remove(temp_file_path)
+#         st.text_area("CV content",text)
+#     # Tạo file Word và JSON
+#     # word_output = os.path.join(temp_dir, "extracted_texts.docx")
+#     # if create_word_file(list(extracted_texts.items()), word_output):
+#     #     with open(word_output, "rb") as file:
+#     #         st.download_button("📥 Download Word file", file, file_name="extracted_texts.docx")
 
-                    text = extract_text_from_pdf(temp_file_path)
-                    if text:
-                        extracted_texts.append((uploaded_file.name, text))
-                        extracted_info = extract_info_with_gpt(text)
-                        extracted_info["Filename"] = uploaded_file.name
-                        extracted_data.append(extracted_info)
-                    os.remove(temp_file_path)
+#     json_output = os.path.join(temp_dir, "extracted_data.json")
+#     save_to_json(list(extracted_data.values()), json_output)
+#     with open(json_output, "rb") as file:
+#         st.download_button("📥 Download JSON file", file, file_name="extracted_data.json")
 
-                word_output = os.path.join(temp_dir, "extracted_texts.docx")
-                if create_word_file(extracted_texts, word_output):
-                    with open(word_output, "rb") as file:
-                        st.download_button("📥 Tải file Word", file, file_name="extracted_texts.docx")
+    # Tạo thư mục tạm
+temp_dir = "temp"
+os.makedirs(temp_dir, exist_ok=True)
 
-                json_output = os.path.join(temp_dir, "extracted_data.json")
-                save_to_json(extracted_data, json_output)
-                with open(json_output, "rb") as file:
-                    st.download_button("📥 Tải file JSON", file, file_name="extracted_data.json")
+uploaded_files = st.file_uploader("Upload PDFs", accept_multiple_files=True)
 
-            # Hiển thị số request & tổng chi phí sau khi xử lý xong
-            st.write(f"🔄 Tổng số request API: **{total_requests}**")
-            st.write(f"💰 Tổng chi phí OpenAI API: **${total_cost:.4f}**")
+extracted_texts = {}
+extracted_data = {}
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        temp_file_path = os.path.join(temp_dir, uploaded_file.name)
+        with open(temp_file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
 
+        text = extract_text_from_pdf(temp_file_path)
+        if text:
+            extracted_texts[uploaded_file.name] = text  # Lưu văn bản chưa xử lý
+        os.remove(temp_file_path)
+
+    # Hiển thị nội dung PDF
+    for filename, text in extracted_texts.items():
+        st.text_area(f"CV content ({filename})", text)
+
+    # Khi người dùng ấn nút, thực hiện extract và tạo JSON
+    if st.button("📥 Generate & Download JSON file"):
+        for filename, text in extracted_texts.items():
+            extracted_info = extract_info_with_gpt(text)  # Chỉ gọi GPT khi cần
+            extracted_info["Filename"] = filename
+            extracted_data[filename] = extracted_info
+
+        json_output = os.path.join(temp_dir, "extracted_data.json")
+        json_data = json.dumps(list(extracted_data.values()), ensure_ascii=False, indent=4)
+
+        # Tạo link tải xuống ngay lập tức
+        st.download_button(
+            label="📥 Click here to download JSON file",
+            data=json_data,
+            file_name="extracted_data.json",
+            mime="application/json"
+        )
+# Điểm khác biệt quan trọng:
+ 
+
+ 
+    # Chatbot với trợ lý ảo
+    st.subheader("💬  Chat with virtual assistant")
+
+    if len(uploaded_files) > 1:
+        selected_cv = st.selectbox("Select CV to interact:", list(extracted_texts.keys()))
+    else:
+        selected_cv = list(extracted_texts.keys())[0]
+    if "openai_model" not in st.session_state:
+        st.session_state.openai_model = "gpt-3.5-turbo"
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    # Display chat messages from history on app rerun
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    if "openai_model" not in st.session_state:
+        st.session_state["openai_model"] = "gpt-3.5-turbo"
+    text_CV = f"Below is the content of the candidate's CV:\n{extracted_texts[selected_cv]}"
+    prompt = st.chat_input("Ask a virtual assistant about this resume:")
+    if prompt:
+         # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        # Display user message in chat message container
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        with st.chat_message("assistant"):
+            stream = client.chat.completions.create(
+            model=st.session_state["openai_model"],
+            messages=[{"role": "system", "content": "Play the role of a professional HR, with 10 years of experience in finding potential candidates suitable for the company based on the CV (resume) they send Context: I will provide you with information of each CV (resume) in text form, from which I will ask you some questions related to the CV (resume) of this candidate Task: Please provide the most accurate and closest information to the question I asked, helping me have the most objective view of this candidate so that I can decide whether to hire him or not Tone: solemn, dignified, straightforward, suitable for the office environment, recruitment. Below is the content of the candidate's CV"  + extracted_texts[selected_cv] },
+                {"role": "user", "content": prompt}],
+                stream=True,
+            )
+                # if hasattr(response.choices[0].delta, "content"):    
+            response = st.write_stream(stream)
+        st.session_state.messages.append({"role": "assistant", "content": response})
     shutil.rmtree(temp_dir, ignore_errors=True)
-
-if __name__ == "__main__":
-    main()
