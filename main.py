@@ -15,6 +15,7 @@ st.image(
 )
 # Nhập OpenAI API Key
 api_key = st.text_input("🔑 Enter OpenAI API Key:", type="password")
+
 if not api_key:
     st.warning("Please enter OpenAI API Key to use the app.")
     st.stop()
@@ -25,6 +26,16 @@ def clean_text(text):
     """Làm sạch văn bản để loại bỏ ký tự NULL và các ký tự điều khiển không hợp lệ."""
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)  # Loại bỏ ký tự điều khiển
     return text.strip()
+# Làm sạch JSON phản hồi từ OpenAI
+def clean_json_response(response_text):
+    """Làm sạch phản hồi GPT để loại bỏ các ký tự không mong muốn trước khi phân tích JSON."""
+    response_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', response_text)
+    response_text = response_text.strip()
+    if response_text.startswith("```json"):
+        response_text = response_text[7:]
+    if response_text.endswith("```"):
+        response_text = response_text[:-3]
+    return response_text.strip()
 # Hàm trích xuất văn bản từ PDF
 def extract_text_from_pdf(pdf_path):
     text = ""
@@ -38,15 +49,59 @@ def extract_text_from_pdf(pdf_path):
         st.error(f"Lỗi khi xử lý PDF: {e}")
         return None
     return text
-def clean_json_response(response_text):
-    """Làm sạch phản hồi GPT để loại bỏ các ký tự không mong muốn trước khi phân tích JSON."""
-    response_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', response_text)
-    response_text = response_text.strip()
-    if response_text.startswith("```json"):
-        response_text = response_text[7:]
-    if response_text.endswith("```"):
-        response_text = response_text[:-3]
-    return response_text.strip()
+# Trích xuất văn bản + bảng từ DOCX
+def extract_text_from_docx(file_path):
+    try:
+        doc = Document(file_path)
+        full_text = []
+
+        # Trích xuất văn bản từ đoạn (paragraphs)
+        for paragraph in doc.paragraphs:
+            full_text.append(clean_text(paragraph.text))
+
+        # Trích xuất dữ liệu từ bảng
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = [clean_text(cell.text) for cell in row.cells]
+                full_text.append(" | ".join(row_text))  # Ngăn cách bằng " | " để giữ định dạng
+
+        return "\n".join(full_text)
+    except Exception as e:
+        st.error(f"Error processing DOCX: {e}")
+        return None
+
+# Trích xuất văn bản từ TXT
+def extract_text_from_txt(file_path):
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return clean_text(f.read())
+    except Exception as e:
+        st.error(f"Error processing TXT: {e}")
+        return None
+
+# Trích xuất dữ liệu từ EXCEL (giữ đúng thứ tự cột + hàng)
+def extract_data_from_excel(file_path):
+    try:
+        df = pd.read_excel(file_path, dtype=str)  # Đọc tất cả dữ liệu dưới dạng chuỗi
+        text_output = df.to_string(index=False)  # Chuyển DataFrame thành văn bản dễ đọc
+        return text_output
+    except Exception as e:
+        st.error(f"Error processing Excel: {e}")
+        return None
+# Xử lý đầu vào nhiều loại tệp
+def extract_text_from_file(file_path, file_type):
+    if file_type == "pdf":
+        return extract_text_from_pdf(file_path)
+    elif file_type == "docx":
+        return extract_text_from_docx(file_path)
+    elif file_type == "txt":
+        return extract_text_from_txt(file_path)
+    elif file_type == "xlsx":
+        return extract_data_from_excel(file_path)
+    else:
+        st.error("Unsupported file format.")
+        return None
+
 # Hàm gọi GPT để trích xuất thông tin
 def extract_info_with_gpt(text):
     prompt = f"""
@@ -142,39 +197,6 @@ def create_word_file(text_list, output_path):
 # Ứng dụng Streamlit
 st.title("📄 HRIS AI Assistant")
 st.write("🔹 Upload your CV (PDF), extract content and ask questions to the virtual assistant!")
-
-# uploaded_files = st.file_uploader("📤Select PDF file", type=["pdf"], accept_multiple_files=True)
-# temp_dir = "temp"
-# os.makedirs(temp_dir, exist_ok=True)
-
-# if uploaded_files:
-#     extracted_data = {}
-#     extracted_texts = {}
-
-#     for uploaded_file in uploaded_files:
-#         temp_file_path = os.path.join(temp_dir, uploaded_file.name)
-#         with open(temp_file_path, "wb") as f:
-#             f.write(uploaded_file.getbuffer())
-
-#         text = extract_text_from_pdf(temp_file_path)
-#         if text:
-#             extracted_texts[uploaded_file.name] = text
-#             extracted_info = extract_info_with_gpt(text)
-#             extracted_info["Filename"] = uploaded_file.name
-#             extracted_data[uploaded_file.name] = extracted_info
-#         os.remove(temp_file_path)
-#         st.text_area("CV content",text)
-#     # Tạo file Word và JSON
-#     # word_output = os.path.join(temp_dir, "extracted_texts.docx")
-#     # if create_word_file(list(extracted_texts.items()), word_output):
-#     #     with open(word_output, "rb") as file:
-#     #         st.download_button("📥 Download Word file", file, file_name="extracted_texts.docx")
-
-#     json_output = os.path.join(temp_dir, "extracted_data.json")
-#     save_to_json(list(extracted_data.values()), json_output)
-#     with open(json_output, "rb") as file:
-#         st.download_button("📥 Download JSON file", file, file_name="extracted_data.json")
-
     # Tạo thư mục tạm
 temp_dir = "temp"
 os.makedirs(temp_dir, exist_ok=True)
@@ -188,15 +210,16 @@ if uploaded_files:
         temp_file_path = os.path.join(temp_dir, uploaded_file.name)
         with open(temp_file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
-
-        text = extract_text_from_pdf(temp_file_path)
+        file_type = uploaded_file.name.split(".")[-1].lower()
+        text = extract_text_from_file(temp_file_path, file_type)
+        # text = extract_text_from_pdf(temp_file_path)
         if text:
             extracted_texts[uploaded_file.name] = text  # Lưu văn bản chưa xử lý
         os.remove(temp_file_path)
 
     # Hiển thị nội dung PDF
     for filename, text in extracted_texts.items():
-        st.text_area(f"CV content ({filename})", text)
+        st.text_area(f"Content ({filename})", text)
 
     # Khi người dùng ấn nút, thực hiện extract và tạo JSON
     if st.button("📥 Generate & Download JSON file"):
