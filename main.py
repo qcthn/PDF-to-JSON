@@ -71,13 +71,13 @@ def extract_text_from_docx(file_path):
         return None
 
 # Trích xuất văn bản từ TXT
-def extract_text_from_txt(file_path):
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            return clean_text(f.read())
-    except Exception as e:
-        st.error(f"Error processing TXT: {e}")
-        return None
+# def extract_text_from_txt(file_path):
+#    try:
+#        with open(file_path, "r", encoding="utf-8") as f:
+#           return clean_text(f.read())
+#    except Exception as e:
+ #       st.error(f"Error processing TXT: {e}")
+  #      return None
 
 # Trích xuất dữ liệu từ EXCEL (giữ đúng thứ tự cột + hàng)
 def extract_data_from_excel(file_path):
