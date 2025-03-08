@@ -94,8 +94,8 @@ def extract_text_from_file(file_path, file_type):
         return extract_text_from_pdf(file_path)
     elif file_type == "docx":
         return extract_text_from_docx(file_path)
-    elif file_type == "txt":
-        return extract_text_from_txt(file_path)
+   # elif file_type == "txt":
+      #  return extract_text_from_txt(file_path)
     elif file_type == "xlsx":
         return extract_data_from_excel(file_path)
     else:
