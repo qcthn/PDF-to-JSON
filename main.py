@@ -30,7 +30,6 @@ else:
 
 if api_key:
     st.write("✅ API Key đã được nhập!")
-
 # Cấu hình OpenAI client
 client = openai.OpenAI(api_key=api_key)
 def clean_text(text):
