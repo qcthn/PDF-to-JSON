@@ -6,6 +6,8 @@ import shutil
 import openai
 from docx import Document
 import re
+import pandas as pd
+from pptx import Presentation
 LOGO_URL_LARGE = "logo-medium.png"
 st.image(
     # LOGO_URL_LARGE,
@@ -14,11 +16,18 @@ st.image(
     LOGO_URL_LARGE,
 )
 # Nhập OpenAI API Key
-api_key = st.text_input("🔑 Enter OpenAI API Key:", type="password")
+# api_key = st.text_input("🔑 Enter OpenAI API Key:", type="password")
 
-if not api_key:
-    st.warning("Please enter OpenAI API Key to use the app.")
-    st.stop()
+# if not api_key:
+#     st.warning("Please enter OpenAI API Key to use the app.")
+#     st.stop()
+if "openai" in st.secrets and "api_key" in st.secrets["openai"]:
+    api_key = st.secrets["openai"]["api_key"]
+else:
+    api_key = st.text_input("Nhập OpenAI API Key:", type="password")
+
+if api_key:
+    st.write("✅ API Key đã được nhập!")
 
 # Cấu hình OpenAI client
 client = openai.OpenAI(api_key=api_key)
@@ -71,13 +80,13 @@ def extract_text_from_docx(file_path):
         return None
 
 # Trích xuất văn bản từ TXT
-# def extract_text_from_txt(file_path):
-#    try:
-#        with open(file_path, "r", encoding="utf-8") as f:
-#           return clean_text(f.read())
-#    except Exception as e:
- #       st.error(f"Error processing TXT: {e}")
-  #      return None
+def extract_text_from_txt(file_path):
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return clean_text(f.read())
+    except Exception as e:
+        st.error(f"Error processing TXT: {e}")
+        return None
 
 # Trích xuất dữ liệu từ EXCEL (giữ đúng thứ tự cột + hàng)
 def extract_data_from_excel(file_path):
@@ -88,16 +97,48 @@ def extract_data_from_excel(file_path):
     except Exception as e:
         st.error(f"Error processing Excel: {e}")
         return None
+# Trích xuất dữ liệu từ PPT
+def extract_text_from_pptx(file_path):
+    """
+    Trích xuất toàn bộ văn bản từ file PPTX.
+    Gồm cả văn bản trong Slide, Shape và Table.
+    """
+    try:
+        prs = Presentation(file_path)
+        text_content = []
+
+        for slide in prs.slides:
+            # Lặp qua tất cả shape
+            for shape in slide.shapes:
+                # Nếu shape có text_frame (vd: text box), thì đọc text
+                if shape.has_text_frame:
+                    text_content.append(clean_text(shape.text))
+
+                # Nếu shape chứa bảng, ta duyệt qua bảng đó để đọc text
+                if shape.has_table:
+                    table = shape.table
+                    for row in table.rows:
+                        row_text = []
+                        for cell in row.cells:
+                            row_text.append(clean_text(cell.text))
+                        text_content.append(" | ".join(row_text))
+
+        return "\n".join(text_content)
+    except Exception as e:
+        st.error(f"Error processing PPTX: {e}")
+        return None
 # Xử lý đầu vào nhiều loại tệp
 def extract_text_from_file(file_path, file_type):
     if file_type == "pdf":
         return extract_text_from_pdf(file_path)
     elif file_type == "docx":
         return extract_text_from_docx(file_path)
-   # elif file_type == "txt":
-      #  return extract_text_from_txt(file_path)
+    elif file_type == "txt":
+        return extract_text_from_txt(file_path)
     elif file_type == "xlsx":
         return extract_data_from_excel(file_path)
+    elif file_type == "pptx":  
+        return extract_text_from_pptx(file_path)
     else:
         st.error("Unsupported file format.")
         return None
