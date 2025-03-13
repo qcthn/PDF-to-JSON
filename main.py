@@ -1,3 +1,11 @@
+
+# Nhập OpenAI API Key
+# api_key = st.text_input("🔑 Enter OpenAI API Key:", type="password")
+
+# if not api_key:
+#     st.warning("Please enter OpenAI API Key to use the app.")
+#     st.stop()
+
 import streamlit as st
 import pdfplumber
 import json
@@ -15,12 +23,6 @@ st.image(
     # link="https://streamlit.io/gallery",
     LOGO_URL_LARGE,
 )
-# Nhập OpenAI API Key
-# api_key = st.text_input("🔑 Enter OpenAI API Key:", type="password")
-
-# if not api_key:
-#     st.warning("Please enter OpenAI API Key to use the app.")
-#     st.stop()
 if "openai" in st.secrets and "api_key" in st.secrets["openai"]:
     api_key = st.secrets["openai"]["api_key"]
 else:
