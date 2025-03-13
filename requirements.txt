@@ -7,3 +7,4 @@ pandas==1.5.3
 python-docx==0.8.11
 openai>=1.0.0
 numpy==1.26.4
+pptx
